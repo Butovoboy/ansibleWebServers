@@ -1,0 +1,51 @@
+- hosts: tomcat
+    
+  become: yes    
+  become_user: root    
+  become_method: sudo    
+    
+  tasks:
+
+  - name: Create tomcat users config
+    shell: touch /opt/tomcat/latest/conf/tomcat-users.xml
+
+  - name: Copy tomcat users config
+    blockinfile:
+      path: /opt/tomcat/latest/conf/tomcat-users.xml
+      block: |
+        <tomcat-users>
+        <role rolename="admin-gui"/>
+        <role rolename="manager-gui"/>
+        <user username="admin" password="Secret13" roles="admin-gui,manager-gui"/>
+        </tomcat-users>
+
+  - name: Create file test.html
+    become: yes    
+    become_user: tomcat  
+    shell: touch /opt/tomcat/latest/webapps/examples/servlets/test.html
+
+  - name: Add page for test
+    become: yes    
+    become_user: tomcat 
+    blockinfile:
+      path: /opt/tomcat/latest/webapps/examples/servlets/test.html
+      block: |
+        <html>     
+        <head>    
+        <title>Untitled Document</title>    
+        <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">    
+        </head>    
+    
+        <body bgcolor="#FFFFFF">    
+        <h1>Testing Nginx. Hello from server with IP {{ ansible_ssh_host }}!<font color="#0000FF"><br></font> </h1>    
+        <font color="#0000FF"></font>    
+        </body>    
+        </html>
+
+  - name: Restart tomcat service
+    systemd:
+      name: tomcat
+      state: restarted
+
+- name: Start next playbook to install nginx   
+  import_playbook: install_docker_nginx.yml 

@@ -1,0 +1,66 @@
+- hosts: tomcat
+    
+  become: yes    
+  become_user: root    
+  become_method: sudo    
+    
+  tasks:
+
+  - name: Create tomcat users config    
+    shell: mkdir -p /opt/tomcat-d/ && touch /opt/tomcat-d/index.jsp && touch /opt/tomcat-d/web.xml
+    
+  - name: Add .xml file
+    blockinfile:
+      path: /opt/tomcat-d/web.xml
+      block: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <web-app xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                xsi:schemaLocation="http://java.sun.com/xml/ns/javaee 
+                    http://java.sun.com/xml/ns/javaee/web-app_2_5.xsd"
+                version="2.5"
+                xmlns="http://java.sun.com/xml/ns/javaee">
+            <welcome-file-list>
+              <welcome-file>index.jsp</welcome-file>
+            </welcome-file-list>
+        </web-app>
+
+  - name: Add .jsp file 
+    blockinfile:    
+      path: /opt/tomcat-d/index.jsp  
+      block: |
+        <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+
+        <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+        <%@ page import="java.util.*, java.text.*" %>
+        
+        <%! 
+        String getFormattedDate() 
+        { 
+            SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy hh:mm:ss"); 
+            return sdf.format(new Date()); 
+        } 
+        %>
+        <html>
+          <head>
+              <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+          </head>
+          <body>
+              <h1>Dynaminc page from tomcat</h1>
+              <p>This is an Apache tomcat dynamic page from host {{ ansible_ssh_host }} </p>
+              <i>Today is <%= getFormattedDate() %></i>
+          <h3> </h3>
+          </body>
+        </html>
+
+  - name: Install docker tomcat 
+    docker_container:
+      name: tomcat
+      image: tomcat
+      recreate: yes
+      ports:
+        - "8080:8080"
+      volumes:
+        - /opt/tomcat-d/:/usr/local/tomcat/webapps/test/
+    
+- name: Start next playbook to install nginx    
+  import_playbook: install_docker_nginx.yml 

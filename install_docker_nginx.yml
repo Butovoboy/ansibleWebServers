@@ -1,0 +1,72 @@
+- hosts: nginx   
+    
+  become: yes    
+  become_user: root    
+  become_method: sudo    
+    
+  tasks:
+
+  - name: Create nginx config
+    shell: mkdir -p /opt/nginx-d/page && mkdir -p /opt/nginx-d/conf && touch /opt/nginx-d/page/index.html && touch /opt/nginx-d/conf/default.conf
+
+  - name: Add lines to nginx config
+    blockinfile:
+      path: /opt/nginx-d/conf/default.conf
+      block: |
+        upstream myapp {
+          least_conn;
+          server {{ hostvars.tomcat1.ansible_host }}:8080;
+          server {{ hostvars.tomcat2.ansible_host }}:8080;
+          server {{ hostvars.tomcat3.ansible_host }}:8080;
+        }
+
+        server {
+          listen 80;
+          listen [::]:80;
+
+          #Configure Nginx to handle dynamic page requests The jsp file request is forwarded to the Tomcat server for processing
+          location ~ .*\.jsp$ {
+            proxy_pass http://myapp;
+            proxy_set_header HOST $host;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Real-IP $remote_addr;
+            #            proxy_set_header X-Forwarded-Proto $scheme;
+            #            proxy_set_header X-Forwarded-Port $server_port;
+          }
+
+          #Configure Nginx to handle still picture requests
+          location ~ .*\.(gif|jpg|jpeg|png|bmp|swf|css)$ {
+            root /usr/local/nginx/html/img;
+            expires 10d;
+          }
+
+          location / {
+            root /usr/share/nginx/html;
+            index index.html index.htm;
+          }
+        }
+
+  - name: Create index.html for nginx
+    blockinfile:
+      path: /opt/nginx-d/page/index.html
+      block: |
+        <html>
+        <title>Static page from nginx</title>
+        </head>
+        <body>
+        <h1>Static page from nginx</h1>
+        <p>This is an Nginx static page from host {{ ansible_ssh_host }} </p>
+        </body>
+        </html>
+
+
+  - name: Install nginx
+    docker_container:
+      name: nginx
+      image: nginx
+      recreate: yes
+      ports:
+        - "80:80"
+      volumes:
+        - /opt/nginx-d/page:/usr/share/nginx/html
+        - /opt/nginx-d/conf:/etc/nginx/conf.d/

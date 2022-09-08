@@ -1,0 +1,77 @@
+- hosts: tomcat
+    
+  become: yes    
+  become_user: root    
+  become_method: sudo    
+    
+  tasks:
+  - name: Add default-jdk plugin to run Java
+    apt:
+      name:
+        - default-jdk
+      update_cache: yes
+
+  - name: Create user Tomcat
+    user:
+      name: tomcat
+      home: /opt/tomcat
+      shell: /bin/false
+      create_home: yes
+
+  - name: Download Tomcat package
+    get_url:
+      url: https://downloads.apache.org/tomcat/tomcat-9/v9.0.65/bin/apache-tomcat-9.0.65.tar.gz
+      dest: /tmp
+
+  - name: Unarchive tomcat package
+    shell: tar xf /tmp/apache-tomcat-9*.tar.gz -C /opt/tomcat
+
+  - name: Create symbolic link to update packages
+    shell: ln -s /opt/tomcat/apache-tomcat-9.0.65 /opt/tomcat/latest
+    ignore_errors: yes
+
+  - name: Change directory ownership
+    shell: chown -RH tomcat:tomcat /opt/tomcat/latest
+
+  - name: Make bin files executable
+    shell: sh -c 'chmod +x /opt/tomcat/latest/bin/*.sh'
+
+  - name: Create tomcat unit file
+    shell: touch /etc/systemd/system/tomcat.service
+
+  - name: Fill systemd unit file
+    blockinfile:    
+      dest: /etc/systemd/system/tomcat.service
+      block: | 
+        [Unit]     
+        Description=Tomcat 9 servlet container    
+        After=network.target    
+    
+        [Service]    
+        Type=forking    
+        User=tomcat    
+        Group=tomcat    
+        Environment="JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64/"    
+        Environment="JAVA_OPTS=-Djava.security.egd=file:///dev/urandom -Djava.awt.headless=true"    
+        Environment="CATALINA_BASE=/opt/tomcat/latest"    
+        Environment="CATALINA_HOME=/opt/tomcat/latest"    
+        Environment="CATALINA_PID=/opt/tomcat/latest/temp/tomcat.pid"    
+        Environment="CATALINA_OPTS=-Xms512M -Xmx1024M -server -XX:+UseParallelGC"    
+        ExecStart=/opt/tomcat/latest/bin/startup.sh    
+        ExecStop=/opt/tomcat/latest/bin/shutdown.sh    
+    
+        [Install]    
+        WantedBy=multi-user.target
+
+  - name: Reload systemd daemon
+    systemd:
+      daemon_reload: yes
+
+  - name: Start tomcat service
+    systemd:
+      name: tomcat
+      state: started
+      enabled: yes
+
+- name: Start next playbook to configure tomcat  
+  import_playbook: configure_tomcat.yml
